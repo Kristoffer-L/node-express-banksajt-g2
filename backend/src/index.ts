@@ -6,20 +6,19 @@ const port = 3000
 interface User {
   id: number| string,
   username: string,
-  email: string,
   password: string
 }
 
 interface Account {
   id: number| string,
   user_id: User["id"]
-  balance: number
+  amount: number
 }
 
 interface Session {
   id: number| string,
   user_id: User["id"]
-  token: string
+  token: number
 }
 
 
@@ -36,15 +35,15 @@ function generateOTP() {
 
 // Din kod här. Skriv dina arrayer
 
-const users: User[] = []
-const accounts: Account[]  = []
-const sessions: Session[] = []
+const users: User[] = [{ id:1, username:"kristoffer", password:"password"}]
+const accounts: Account[]  = [{id:1, user_id: 1, amount:100}]
+const sessions: Session[] = [{id:1, user_id: 1, token:123}]
 
 // Din kod här. Skriv dina routes:
 
 //Skapa användare (POST): "/users"
 app.post("/users", (req, res) => {
-  res.send("users here");
+  res.json(req.body);
 });
 //Logga in (POST): "/sessions"
 app.post("/sessions", (req, res) => {

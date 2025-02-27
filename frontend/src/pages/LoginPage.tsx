@@ -13,7 +13,6 @@ function LoginPage() {
     const handleLogin = async (event: React.FormEvent) => {
         event.preventDefault(); // Prevent the default form submission
 
- 
         try {
             const response = await fetch('http://localhost:3000/sessions', {
                 method: 'POST',
