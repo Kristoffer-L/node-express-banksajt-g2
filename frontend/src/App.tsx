@@ -13,14 +13,14 @@ function App() {
 
   return (
     <>
-     <Layout>
+    <Layout>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/signup" element={<CreateUserPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/account" element={<AccountPage />} />
         </Routes>
-     </Layout>
+    </Layout>
     </>
   )
 }
