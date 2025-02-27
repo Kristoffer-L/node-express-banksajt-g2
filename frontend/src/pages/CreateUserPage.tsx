@@ -6,8 +6,9 @@ function CreateUserPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
 
-    const handleSignUp = async () => {
+    const handleSignUp = async (e: { preventDefault: () => void; }) => {
 
+      e.preventDefault();
         try {
             const response = await fetch('http://localhost:3000/users', {
                 method: 'POST',
@@ -27,7 +28,7 @@ function CreateUserPage() {
                 throw new Error('Fel användarnamn eller lösenord');
             }
         } catch (error) {
-            console.error('Error:', error)
+            console.error(error)
         }
   
     }

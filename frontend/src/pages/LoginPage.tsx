@@ -7,7 +7,7 @@ function LoginPage() {
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
 
-    let navigate = useNavigate();
+    const navigate = useNavigate();
 
 
     const handleLogin = async (event: React.FormEvent) => {
@@ -25,10 +25,10 @@ function LoginPage() {
                 }),
             });
             if (response.ok) {
-                alert("Login successful")
+                // alert("Login successful")
                 const data = await response.json();
                 console.log("response", data)
-                localStorage.setItem('token', data.newSession.token);
+                localStorage.setItem('token', data.token);
                 //Programmatic navigation to account page
                 navigate('/account');
             
@@ -36,7 +36,7 @@ function LoginPage() {
                 throw new Error('Fel användarnamn eller lösenord');
             }
         } catch (error){
-            console.error('Error:', error);
+            console.error(error);
         }
     }
 
