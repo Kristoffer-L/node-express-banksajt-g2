@@ -1,27 +1,25 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import mysql from "mysql2/promise";
+import { User, Account, Session } from "./types";
+
+// Skapa en anslutning till databasen
+const pool = mysql.createPool({
+  host: "localhost",
+  user: "root",
+  database: "banksajt",
+  port: 3306,
+});
+
+async function getUsers() {
+  const [result] = await pool.query("SELECT * FROM users");
+  console.log(result);
+}
+
+//getUsers();
 
 const app = express();
 const port = 3000;
-interface User {
-  id: string;
-  username: string;
-  password: string;
-}
-
-interface Account {
-  id: string;
-  user_id: User["id"];
-  balance: number;
-}
-
-interface Session {
-  id: string;
-  user_id: User["id"];
-  token: string;
-}
-
-interface TypedRequest<T> extends Request {}
 
 // Middleware
 app.use(cors());
@@ -49,7 +47,7 @@ app.post(
     req: Request<{}, {}, { username: string; password: string }, {}>,
     res: Response<{ user: User; account: Account } | { error: string }>
   ) => {
-    const { username, password } = req.body;
+    const { password, username } = req.body;
 
     if (
       !username ||
@@ -88,7 +86,7 @@ app.post(
 app.post(
   "/sessions",
   (
-    req: TypedRequest<{ username: string; password: string }>,
+    req: Request<{}, {}, { username: string; password: string }, {}>,
     res: Response<{ token: string } | { error: string }>
   ) => {
     const { username, password } = req.body;
@@ -133,11 +131,7 @@ app.post(
 app.post(
   "/me/accounts",
   (
-    req: TypedRequest<{
-      headers: {
-        authorization: string;
-      };
-    }>,
+    req: Request<{}, {}, {}, {}>,
     res: Response<{ balance: number } | { error: string }>
   ) => {
     const bearer = req.headers.authorization;
@@ -187,10 +181,16 @@ app.post(
 app.post(
   "/me/accounts/transactions",
   (
-    req: TypedRequest<{
-      headers: { authorization: string };
-      body: { amount: number };
-    }>,
+    req: Request<
+      {},
+      {},
+      { amount: number },
+      {
+        headers: {
+          Authorization: string;
+        };
+      }
+    >,
     res: Response<{ message: number } | { error: string }>
   ) => {
     const bearer = req.headers.authorization;
