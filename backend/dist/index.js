@@ -1,10 +1,34 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const promise_1 = __importDefault(require("mysql2/promise"));
+// Skapa en anslutning till databasen
+const pool = promise_1.default.createPool({
+    host: "localhost",
+    user: "root",
+    database: "banksajt",
+    port: 3306,
+});
+function getUsers() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const [result] = yield pool.execute("SELECT * FROM users");
+        console.log(result);
+    });
+}
+//getUsers();
 const app = (0, express_1.default)();
 const port = 3000;
 // Middleware
@@ -17,13 +41,15 @@ function generateOTP() {
     return otp.toString();
 }
 // Din kod här. Skriv dina arrayer
-const users = [];
-const accounts = [];
-const sessions = [];
+/*
+const users: User[] = [];
+const accounts: Account[] = [];
+const sessions: Session[] = [];
+*/
 // Din kod här. Skriv dina routes:
 //Skapa användare (POST): "/users"
-app.post("/users", (req, res) => {
-    const { username, password } = req.body;
+app.post("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { password, username } = req.body;
     if (!username ||
         typeof username !== "string" ||
         !password ||
@@ -32,25 +58,35 @@ app.post("/users", (req, res) => {
             error: "Användarnamn och lösenord krävs",
         });
     }
-    const newUser = {
-        id: generateOTP(),
-        username,
-        password,
-    };
-    users.push(newUser);
-    const newAccount = {
-        id: generateOTP(),
-        user_id: newUser.id,
-        balance: 0,
-    };
-    accounts.push(newAccount);
+    try {
+        const [inserted] = yield pool.execute("INSERT INTO users (username, password) VALUES (?, ?)", [username, password]);
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
+    try {
+        const [inserted] = yield pool.execute("INSERT INTO accounts(user_id) values ((SELECT id FROM users WHERE username = ?))", [username]);
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     res.status(201).json({
-        user: newUser,
-        account: newAccount,
+        user: {
+            username,
+        },
+        account: {
+            balance: 0,
+        },
     });
-});
+}));
 //Logga in (POST): "/sessions"
-app.post("/sessions", (req, res) => {
+app.post("/sessions", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { username, password } = req.body;
     if (!username ||
         typeof username !== "string" ||
@@ -60,25 +96,42 @@ app.post("/sessions", (req, res) => {
             error: "Användarnamn och lösenord krävs",
         });
     }
-    const user = users.find((user) => user.username === username && user.password === password);
+    let user = null;
+    try {
+        const [result] = yield pool.execute("SELECT * FROM users WHERE username = ? AND password = ?", [username, password]);
+        //@ts-ignore
+        user = result[0];
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     if (!user) {
         res.status(401).json({
             error: "Fel användarnamn eller lösenord",
         });
         return;
     }
-    const session = {
-        id: generateOTP(),
-        user_id: user.id,
-        token: generateOTP(),
-    };
-    sessions.push(session);
+    const token = generateOTP();
+    try {
+        const [inserted] = yield pool.execute("INSERT INTO sessions (user_id, token) VALUES (?, ?)", 
+        //@ts-ignore
+        [user.id, token]);
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     res.status(201).json({
-        token: session.token,
+        token: token,
     });
-});
+}));
 //Visa salodo (POST): "/me/accounts"
-app.post("/me/accounts", (req, res) => {
+app.post("/me/accounts", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const bearer = req.headers.authorization;
     if (!bearer) {
         res.status(401).json({
@@ -93,14 +146,37 @@ app.post("/me/accounts", (req, res) => {
         });
         return;
     }
-    const session = sessions.find((session) => session.token === token);
+    let session = null;
+    try {
+        const [result] = yield pool.execute("SELECT * FROM sessions WHERE token = ?", [token]);
+        //@ts-ignore
+        session = result[0];
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     if (!session) {
         res.status(401).json({
             error: "Ogiltig token",
         });
         return;
     }
-    const account = accounts.find((account) => account.user_id === session.user_id);
+    let account = null;
+    try {
+        const [result] = yield pool.execute("SELECT * FROM accounts WHERE user_id = ?", [session.user_id]);
+        console.log(result);
+        //@ts-ignore
+        account = result[0];
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     if (!account) {
         res.status(404).json({
             error: "Kontot kunde inte hittas",
@@ -110,9 +186,9 @@ app.post("/me/accounts", (req, res) => {
     res.status(200).json({
         balance: account.balance,
     });
-});
+}));
 //Sätt in pengar (POST): "/me/accounts/transactions"
-app.post("/me/accounts/transactions", (req, res) => {
+app.post("/me/accounts/transactions", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const bearer = req.headers.authorization;
     if (!bearer) {
         res.status(401).json({
@@ -127,14 +203,36 @@ app.post("/me/accounts/transactions", (req, res) => {
         });
         return;
     }
-    const session = sessions.find((session) => session.token === token);
+    let session = null;
+    try {
+        const [result] = yield pool.execute("SELECT * FROM sessions WHERE token = ?", [token]);
+        //@ts-ignore
+        session = result[0];
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     if (!session) {
         res.status(401).json({
             error: "Ogiltig token",
         });
         return;
     }
-    const account = accounts.find((account) => account.user_id === session.user_id);
+    let account = null;
+    try {
+        const [result] = yield pool.execute("SELECT * FROM accounts WHERE user_id = ?", [session.user_id]);
+        //@ts-ignore
+        account = result[0];
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     if (!account) {
         res.status(404).json({
             error: "Kontot kunde inte hittas",
@@ -148,11 +246,22 @@ app.post("/me/accounts/transactions", (req, res) => {
         });
         return;
     }
-    account.balance += amount;
+    try {
+        yield pool.execute("UPDATE accounts SET balance = ? WHERE user_id = ?", [
+            account.balance + amount,
+            session.user_id,
+        ]);
+    }
+    catch (error) {
+        res.status(500).json({
+            error: "Något gick fel",
+        });
+        return;
+    }
     res.status(200).json({
-        message: account.balance,
+        message: account.balance + amount,
     });
-});
+}));
 // Starta servern
 const server = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
