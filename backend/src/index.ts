@@ -1,25 +1,27 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 
 const app = express();
 const port = 3000;
 interface User {
-  id: number | string;
+  id: string;
   username: string;
   password: string;
 }
 
 interface Account {
-  id: number | string;
+  id: string;
   user_id: User["id"];
   balance: number;
 }
 
 interface Session {
-  id: number | string;
+  id: string;
   user_id: User["id"];
-  token: number | string;
+  token: string;
 }
+
+interface TypedRequest<T> extends Request {}
 
 // Middleware
 app.use(cors());
@@ -34,53 +36,219 @@ function generateOTP() {
 
 // Din kod här. Skriv dina arrayer
 
-const users: User[] = [
-  { id: 101, username: "kristoffer", password: "password" },
-];
-const accounts: Account[] = [{ id: 1, user_id: 101, balance: 100 }];
-const sessions: Session[] = [{ id: 1, user_id: 101, token: "" }];
+const users: User[] = [];
+const accounts: Account[] = [];
+const sessions: Session[] = [];
 
 // Din kod här. Skriv dina routes:
 
 //Skapa användare (POST): "/users"
-app.post("/users", (req, res) => {
-  res.json(req.body.username);
-});
-//Logga in (POST): "/sessions"
-app.post("/sessions", (req, res) => {
-  users.forEach((user) => {
+app.post(
+  "/users",
+  (
+    req: Request<{}, {}, { username: string; password: string }, {}>,
+    res: Response<{ user: User; account: Account } | { error: string }>
+  ) => {
+    const { username, password } = req.body;
+
     if (
-      req.body.username === user.username &&
-      req.body.password === user.password
+      !username ||
+      typeof username !== "string" ||
+      !password ||
+      typeof password !== "string"
     ) {
-      const newSession: Session = {
-        id: sessions.length + 1,
-        user_id: user.id,
-        token: generateOTP(),
-      };
-      sessions.push(newSession);
-      res.json({
-        message: "Inloggning lyckades",
-        token: newSession.token,
+      res.status(400).json({
+        error: "Användarnamn och lösenord krävs",
+      });
+    }
+
+    const newUser = {
+      id: generateOTP(),
+      username,
+      password,
+    } as User;
+
+    users.push(newUser);
+
+    const newAccount = {
+      id: generateOTP(),
+      user_id: newUser.id,
+      balance: 0,
+    } as Account;
+
+    accounts.push(newAccount);
+
+    res.status(201).json({
+      user: newUser,
+      account: newAccount,
+    });
+  }
+);
+//Logga in (POST): "/sessions"
+app.post(
+  "/sessions",
+  (
+    req: TypedRequest<{ username: string; password: string }>,
+    res: Response<{ token: string } | { error: string }>
+  ) => {
+    const { username, password } = req.body;
+
+    if (
+      !username ||
+      typeof username !== "string" ||
+      !password ||
+      typeof password !== "string"
+    ) {
+      res.status(400).json({
+        error: "Användarnamn och lösenord krävs",
+      });
+    }
+
+    const user = users.find(
+      (user) => user.username === username && user.password === password
+    );
+
+    if (!user) {
+      res.status(401).json({
+        error: "Fel användarnamn eller lösenord",
       });
       return;
     }
-  });
-  res.status(401).json({
-    message: "Fel användarnamn eller lösenord",
-  });
-});
+
+    const session = {
+      id: generateOTP(),
+      user_id: user.id,
+      token: generateOTP(),
+    } as Session;
+
+    sessions.push(session);
+
+    res.status(201).json({
+      token: session.token,
+    });
+  }
+);
 
 //Visa salodo (POST): "/me/accounts"
-app.post("/me/accounts", (req, res) => {
-  // res.json({ balance });
-});
+app.post(
+  "/me/accounts",
+  (
+    req: TypedRequest<{
+      headers: {
+        authorization: string;
+      };
+    }>,
+    res: Response<{ balance: number } | { error: string }>
+  ) => {
+    const bearer = req.headers.authorization;
+
+    if (!bearer) {
+      res.status(401).json({
+        error: "Du måste logga in för att se ditt saldo",
+      });
+      return;
+    }
+
+    const token = bearer.split(" ")[1];
+
+    if (!token) {
+      res.status(401).json({
+        error: "Du måste logga in för att se ditt saldo",
+      });
+      return;
+    }
+
+    const session = sessions.find((session) => session.token === token);
+
+    if (!session) {
+      res.status(401).json({
+        error: "Ogiltig token",
+      });
+      return;
+    }
+
+    const account = accounts.find(
+      (account) => account.user_id === session.user_id
+    );
+
+    if (!account) {
+      res.status(404).json({
+        error: "Kontot kunde inte hittas",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      balance: account.balance,
+    });
+  }
+);
 //Sätt in pengar (POST): "/me/accounts/transactions"
-app.post("/me/accounts/transactions", (req, res) => {
-  res.send("users here");
-});
+app.post(
+  "/me/accounts/transactions",
+  (
+    req: TypedRequest<{
+      headers: { authorization: string };
+      body: { amount: number };
+    }>,
+    res: Response<{ message: number } | { error: string }>
+  ) => {
+    const bearer = req.headers.authorization;
+
+    if (!bearer) {
+      res.status(401).json({
+        error: "Du måste logga in för att sätta in pengar",
+      });
+      return;
+    }
+
+    const token = bearer.split(" ")[1];
+
+    if (!token) {
+      res.status(401).json({
+        error: "Du måste logga in för att sätta in pengar",
+      });
+      return;
+    }
+
+    const session = sessions.find((session) => session.token === token);
+
+    if (!session) {
+      res.status(401).json({
+        error: "Ogiltig token",
+      });
+      return;
+    }
+
+    const account = accounts.find(
+      (account) => account.user_id === session.user_id
+    );
+
+    if (!account) {
+      res.status(404).json({
+        error: "Kontot kunde inte hittas",
+      });
+      return;
+    }
+
+    const { amount } = req.body;
+
+    if (!amount || typeof amount !== "number") {
+      res.status(400).json({
+        error: "Kontonummer och belopp krävs",
+      });
+      return;
+    }
+
+    account.balance += amount;
+
+    res.status(200).json({
+      message: account.balance,
+    });
+  }
+);
 
 // Starta servern
-app.listen(port, () => {
-  console.log(`Bankens backend körs på http://localhost:${port}`);
+const server = app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
 });
