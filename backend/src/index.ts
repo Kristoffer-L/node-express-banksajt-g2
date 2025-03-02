@@ -12,7 +12,7 @@ const pool = mysql.createPool({
 });
 
 async function getUsers() {
-  const [result] = await pool.query("SELECT * FROM users");
+  const [result] = await pool.execute("SELECT * FROM users");
   console.log(result);
 }
 
@@ -33,19 +33,25 @@ function generateOTP() {
 }
 
 // Din kod här. Skriv dina arrayer
-
+/*
 const users: User[] = [];
 const accounts: Account[] = [];
 const sessions: Session[] = [];
-
+*/
 // Din kod här. Skriv dina routes:
 
 //Skapa användare (POST): "/users"
 app.post(
   "/users",
-  (
+  async (
     req: Request<{}, {}, { username: string; password: string }, {}>,
-    res: Response<{ user: User; account: Account } | { error: string }>
+    res: Response<
+      | {
+          user: { username: User["username"] };
+          account: { balance: Account["balance"] };
+        }
+      | { error: string }
+    >
   ) => {
     const { password, username } = req.body;
 
@@ -60,32 +66,44 @@ app.post(
       });
     }
 
-    const newUser = {
-      id: generateOTP(),
-      username,
-      password,
-    } as User;
+    try {
+      const [inserted] = await pool.execute<mysql.ResultSetHeader>(
+        "INSERT INTO users (username, password) VALUES (?, ?)",
+        [username, password]
+      );
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
-    users.push(newUser);
-
-    const newAccount = {
-      id: generateOTP(),
-      user_id: newUser.id,
-      balance: 0,
-    } as Account;
-
-    accounts.push(newAccount);
+    try {
+      const [inserted] = await pool.execute<mysql.ResultSetHeader>(
+        "INSERT INTO accounts(user_id) values ((SELECT id FROM users WHERE username = ?))",
+        [username]
+      );
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     res.status(201).json({
-      user: newUser,
-      account: newAccount,
+      user: {
+        username,
+      },
+      account: {
+        balance: 0,
+      },
     });
   }
 );
 //Logga in (POST): "/sessions"
 app.post(
   "/sessions",
-  (
+  async (
     req: Request<{}, {}, { username: string; password: string }, {}>,
     res: Response<{ token: string } | { error: string }>
   ) => {
@@ -102,9 +120,21 @@ app.post(
       });
     }
 
-    const user = users.find(
-      (user) => user.username === username && user.password === password
-    );
+    let user = null;
+
+    try {
+      const [result] = await pool.execute(
+        "SELECT * FROM users WHERE username = ? AND password = ?",
+        [username, password]
+      );
+      //@ts-ignore
+      user = result[0];
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     if (!user) {
       res.status(401).json({
@@ -113,16 +143,23 @@ app.post(
       return;
     }
 
-    const session = {
-      id: generateOTP(),
-      user_id: user.id,
-      token: generateOTP(),
-    } as Session;
+    const token = generateOTP();
 
-    sessions.push(session);
+    try {
+      const [inserted] = await pool.execute<mysql.ResultSetHeader>(
+        "INSERT INTO sessions (user_id, token) VALUES (?, ?)",
+        //@ts-ignore
+        [user.id, token]
+      );
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     res.status(201).json({
-      token: session.token,
+      token: token,
     });
   }
 );
@@ -130,7 +167,7 @@ app.post(
 //Visa salodo (POST): "/me/accounts"
 app.post(
   "/me/accounts",
-  (
+  async (
     req: Request<{}, {}, {}, {}>,
     res: Response<{ balance: number } | { error: string }>
   ) => {
@@ -152,7 +189,21 @@ app.post(
       return;
     }
 
-    const session = sessions.find((session) => session.token === token);
+    let session = null;
+
+    try {
+      const [result] = await pool.execute(
+        "SELECT * FROM sessions WHERE token = ?",
+        [token]
+      );
+      //@ts-ignore
+      session = result[0];
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     if (!session) {
       res.status(401).json({
@@ -161,9 +212,22 @@ app.post(
       return;
     }
 
-    const account = accounts.find(
-      (account) => account.user_id === session.user_id
-    );
+    let account = null;
+
+    try {
+      const [result] = await pool.execute(
+        "SELECT * FROM accounts WHERE user_id = ?",
+        [session.user_id]
+      );
+      console.log(result);
+      //@ts-ignore
+      account = result[0];
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     if (!account) {
       res.status(404).json({
@@ -177,10 +241,11 @@ app.post(
     });
   }
 );
+
 //Sätt in pengar (POST): "/me/accounts/transactions"
 app.post(
   "/me/accounts/transactions",
-  (
+  async (
     req: Request<
       {},
       {},
@@ -211,7 +276,21 @@ app.post(
       return;
     }
 
-    const session = sessions.find((session) => session.token === token);
+    let session = null;
+
+    try {
+      const [result] = await pool.execute(
+        "SELECT * FROM sessions WHERE token = ?",
+        [token]
+      );
+      //@ts-ignore
+      session = result[0];
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     if (!session) {
       res.status(401).json({
@@ -220,9 +299,21 @@ app.post(
       return;
     }
 
-    const account = accounts.find(
-      (account) => account.user_id === session.user_id
-    );
+    let account = null;
+
+    try {
+      const [result] = await pool.execute(
+        "SELECT * FROM accounts WHERE user_id = ?",
+        [session.user_id]
+      );
+      //@ts-ignore
+      account = result[0];
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     if (!account) {
       res.status(404).json({
@@ -240,10 +331,20 @@ app.post(
       return;
     }
 
-    account.balance += amount;
+    try {
+      await pool.execute("UPDATE accounts SET balance = ? WHERE user_id = ?", [
+        account.balance + amount,
+        session.user_id,
+      ]);
+    } catch (error) {
+      res.status(500).json({
+        error: "Något gick fel",
+      });
+      return;
+    }
 
     res.status(200).json({
-      message: account.balance,
+      message: account.balance + amount,
     });
   }
 );
