@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Response, Request } from "express";
 import cors from "cors";
 
 const app = express();
@@ -34,7 +34,9 @@ function generateOTP() {
 
 // Din kod här. Skriv dina arrayer
 
-const users: User[] = [{ id: 101, username: "kristoffer", password: "password" }];
+const users: User[] = [
+  { id: 101, username: "kristoffer", password: "password" },
+];
 const accounts: Account[] = [{ id: 1, user_id: 101, balance: 100 }];
 const sessions: Session[] = [];
 
@@ -64,7 +66,10 @@ app.post("/users", (req, res) => {
 //Logga in (POST): "/sessions"
 app.post("/sessions", (req, res) => {
   users.forEach((user) => {
-    if (req.body.username === user.username && req.body.password === user.password) {
+    if (
+      req.body.username === user.username &&
+      req.body.password === user.password
+    ) {
       const newSession: Session = {
         id: sessions.length + 1,
         user_id: user.id,
@@ -84,15 +89,57 @@ app.post("/sessions", (req, res) => {
 });
 
 //Visa salodo (POST): "/me/accounts"
-app.post("/me/accounts", (req, res) => {
-  const headertoken = req.headers.authorization;
-  const usertoken = headertoken?.split(" ")[1];
-  sessions.forEach((session) => {
-    if (session.token === usertoken) {
-      res.json(req.body);
+app.post(
+  "/me/accounts",
+  (
+    req: Request<
+      {},
+      {},
+      {},
+      {
+        headers: {
+          authorization: string | undefined;
+        };
+      }
+    >,
+    res: Response<{ account: Account } | { error: string }>
+  ) => {
+    const bearerAndToken = req.headers.authorization;
+
+    const token = bearerAndToken?.split(" ")[1];
+
+    if (!token) {
+      res.status(401).json({
+        error: "Du är inte inloggad",
+      });
+      return;
     }
-  });
-});
+
+    const session = sessions.find((session) => session.token === token);
+
+    if (!session) {
+      res.status(401).json({
+        error: "Du är inte inloggad",
+      });
+      return;
+    }
+
+    const account = accounts.find(
+      (account) => account.user_id === session.user_id
+    );
+
+    if (!account) {
+      res.status(404).json({
+        error: "Kontot hittades inte",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      account,
+    });
+  }
+);
 //Sätt in pengar (POST): "/me/accounts/transactions"
 app.post("/me/account/transaction", (req, res) => {
   // res.json(usertoken);
