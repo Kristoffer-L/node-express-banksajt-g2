@@ -34,44 +34,37 @@ function generateOTP() {
 
 // Din kod här. Skriv dina arrayer
 
-const users: User[] = [
-  { id: 101, username: "kristoffer", password: "password" },
-];
+const users: User[] = [{ id: 101, username: "kristoffer", password: "password" }];
 const accounts: Account[] = [{ id: 1, user_id: 101, balance: 100 }];
-const sessions: Session[] = [{ id: 1, user_id: 101, token: "10" }];
+const sessions: Session[] = [];
 
 // Din kod här. Skriv dina routes:
 
 //Skapa användare (POST): "/users"
 app.post("/users", (req, res) => {
-
   const username = req.body.username;
   const password = req.body.password;
   const newUser: User = {
     id: users.length + 1,
     username: username,
-    password: password
-  }
+    password: password,
+  };
 
   users.push(newUser);
 
   const newAccount: Account = {
     id: accounts.length + 1,
     user_id: newUser.id,
-    balance: 0
-  }
-  
-  accounts.push(newAccount);
-  res.json({newAccount, newUser});
+    balance: 0,
+  };
 
+  accounts.push(newAccount);
+  res.json({ newAccount, newUser });
 });
 //Logga in (POST): "/sessions"
 app.post("/sessions", (req, res) => {
   users.forEach((user) => {
-    if (
-      req.body.username === user.username &&
-      req.body.password === user.password
-    ) {
+    if (req.body.username === user.username && req.body.password === user.password) {
       const newSession: Session = {
         id: sessions.length + 1,
         user_id: user.id,
@@ -92,12 +85,17 @@ app.post("/sessions", (req, res) => {
 
 //Visa salodo (POST): "/me/accounts"
 app.post("/me/accounts", (req, res) => {
-  // res.json({ balance });
+  const headertoken = req.headers.authorization;
+  const usertoken = headertoken?.split(" ")[1];
+  sessions.forEach((session) => {
+    if (session.token === usertoken) {
+      res.json(req.body);
+    }
+  });
 });
 //Sätt in pengar (POST): "/me/accounts/transactions"
 app.post("/me/account/transaction", (req, res) => {
-  
-  res.json(req.body);
+  // res.json(usertoken);
 });
 
 // Starta servern
