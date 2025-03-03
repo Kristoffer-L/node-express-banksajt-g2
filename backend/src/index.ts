@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
-import mysql from "mysql2/promise";
+import mysql, { RowDataPacket } from "mysql2/promise";
 import { User, Account, Session } from "./types";
 
 // Skapa en anslutning till databasen
@@ -10,13 +10,6 @@ const pool = mysql.createPool({
   database: "banksajt",
   port: 3306,
 });
-
-async function getUsers() {
-  const [result] = await pool.execute("SELECT * FROM users");
-  console.log(result);
-}
-
-//getUsers();
 
 const app = express();
 const port = 3000;
@@ -67,7 +60,7 @@ app.post(
     }
 
     try {
-      const [inserted] = await pool.execute<mysql.ResultSetHeader>(
+      await pool.execute(
         "INSERT INTO users (username, password) VALUES (?, ?)",
         [username, password]
       );
@@ -79,7 +72,7 @@ app.post(
     }
 
     try {
-      const [inserted] = await pool.execute<mysql.ResultSetHeader>(
+      await pool.execute(
         "INSERT INTO accounts(user_id) values ((SELECT id FROM users WHERE username = ?))",
         [username]
       );
@@ -123,12 +116,12 @@ app.post(
     let user = null;
 
     try {
-      const [result] = await pool.execute(
+      //@ts-ignore
+      const [row]: User[] | [] = await pool.execute<mysql.QueryResult>(
         "SELECT * FROM users WHERE username = ? AND password = ?",
         [username, password]
       );
-      //@ts-ignore
-      user = result[0];
+      user = row;
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -146,9 +139,8 @@ app.post(
     const token = generateOTP();
 
     try {
-      const [inserted] = await pool.execute<mysql.ResultSetHeader>(
+      await pool.execute(
         "INSERT INTO sessions (user_id, token) VALUES (?, ?)",
-        //@ts-ignore
         [user.id, token]
       );
     } catch (error) {
@@ -192,12 +184,13 @@ app.post(
     let session = null;
 
     try {
-      const [result] = await pool.execute(
+      //@ts-ignore
+      const [row]: Session[] | [] = await pool.execute<mysql.QueryResult>(
         "SELECT * FROM sessions WHERE token = ?",
         [token]
       );
-      //@ts-ignore
-      session = result[0];
+
+      session = row;
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -215,13 +208,12 @@ app.post(
     let account = null;
 
     try {
-      const [result] = await pool.execute(
+      //@ts-ignore
+      const [row]: Account[] | [] = await pool.execute<mysql.QueryResult>(
         "SELECT * FROM accounts WHERE user_id = ?",
         [session.user_id]
       );
-      console.log(result);
-      //@ts-ignore
-      account = result[0];
+      account = row;
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -279,12 +271,12 @@ app.post(
     let session = null;
 
     try {
-      const [result] = await pool.execute(
+      //@ts-ignore
+      const [row]: Session[] | [] = await pool.execute<mysql.QueryResult>(
         "SELECT * FROM sessions WHERE token = ?",
         [token]
       );
-      //@ts-ignore
-      session = result[0];
+      session = row;
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -302,12 +294,12 @@ app.post(
     let account = null;
 
     try {
-      const [result] = await pool.execute(
+      //@ts-ignore
+      const [row]: Account[] | [] = await pool.execute<mysql.QueryResult>(
         "SELECT * FROM accounts WHERE user_id = ?",
         [session.user_id]
       );
-      //@ts-ignore
-      account = result[0];
+      account = row;
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
