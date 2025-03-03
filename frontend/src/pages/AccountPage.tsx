@@ -35,35 +35,33 @@ function AccountPage() {
     }
   };
 
-  const depositMoney = async () => {
-    try {
-      const sessionToken = localStorage.getItem("token");
-      if (!sessionToken) {
-        throw new Error("No session token");
-        return;
-      }
-      const response = await fetch(
-        "http://localhost:3000/me/accounts/transactions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionToken}`,
-          },
-          body: JSON.stringify({
-            amount: depositAmount,
-          }),
+    const depositMoney = async () => {
+        try {
+            const sessionToken = localStorage.getItem('token');
+            if(!sessionToken) {
+                throw new Error('No session token');
+                return;
+            }
+            const response = await fetch('http://localhost:3000/me/account/transaction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${sessionToken}`,
+                },
+                body: JSON.stringify({
+                    amount: depositAmount,
+                }),
+            });
+            if(response.ok) {
+                const data = await response.json();
+                alert(`Du har nu ${data.message} kronor på ditt konto`);
+                fetchAccountBalance();
+            } else {
+                console.error('Error:', response);
+            }
+        } catch (error) {
+            console.error('Error:', error);
         }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        alert(`Du har nu ${data.message} kronor på ditt konto`);
-        fetchAccountBalance();
-      } else {
-        console.error("Error:", response);
-      }
-    } catch (error) {
-      console.error("Error:", error);
     }
   };
 
