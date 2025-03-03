@@ -1,7 +1,14 @@
-import express, { Request, Response } from "express";
+import express, { Application, Request, Response } from "express";
 import cors from "cors";
-import mysql, { RowDataPacket } from "mysql2/promise";
-import { User, Account, Session } from "./types";
+import mysql from "mysql2/promise";
+import {
+  User,
+  Account,
+  Session,
+  UserRow,
+  SessionRow,
+  AccountRow,
+} from "./types";
 
 // Skapa en anslutning till databasen
 const pool = mysql.createPool({
@@ -11,18 +18,17 @@ const pool = mysql.createPool({
   port: 3306,
 });
 
-const app = express();
-const port = 3000;
+const app: Application = express();
+const port: number = 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
 // Generera engångslösenord
-function generateOTP() {
+function generateOTP(): string {
   // Generera en sexsiffrig numerisk OTP
-  const otp = Math.floor(100000 + Math.random() * 900000);
-  return otp.toString();
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 // Din kod här. Skriv dina arrayer
@@ -37,11 +43,19 @@ const sessions: Session[] = [];
 app.post(
   "/users",
   async (
-    req: Request<{}, {}, { username: string; password: string }, {}>,
+    req: Request<
+      {},
+      {},
+      {
+        username: string | undefined;
+        password: string | undefined;
+      },
+      {}
+    >,
     res: Response<
       | {
-          user: { username: User["username"] };
-          account: { balance: Account["balance"] };
+          user: { username: string };
+          account: { balance: number };
         }
       | { error: string }
     >
@@ -57,6 +71,7 @@ app.post(
       res.status(400).json({
         error: "Användarnamn och lösenord krävs",
       });
+      return;
     }
 
     try {
@@ -97,7 +112,12 @@ app.post(
 app.post(
   "/sessions",
   async (
-    req: Request<{}, {}, { username: string; password: string }, {}>,
+    req: Request<
+      {},
+      {},
+      { username: string | undefined; password: string | undefined },
+      {}
+    >,
     res: Response<{ token: string } | { error: string }>
   ) => {
     const { username, password } = req.body;
@@ -111,17 +131,18 @@ app.post(
       res.status(400).json({
         error: "Användarnamn och lösenord krävs",
       });
+      return;
     }
 
-    let user = null;
+    let user: User | null = null;
 
     try {
-      //@ts-ignore
-      const [row]: User[] | [] = await pool.execute<mysql.QueryResult>(
+      const [users] = await pool.query<UserRow[]>(
         "SELECT * FROM users WHERE username = ? AND password = ?",
         [username, password]
       );
-      user = row;
+
+      user = users[0];
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -160,7 +181,16 @@ app.post(
 app.post(
   "/me/accounts",
   async (
-    req: Request<{}, {}, {}, {}>,
+    req: Request<
+      {},
+      {},
+      {},
+      {
+        headers: {
+          authorization: string | undefined;
+        };
+      }
+    >,
     res: Response<{ balance: number } | { error: string }>
   ) => {
     const bearer = req.headers.authorization;
@@ -181,16 +211,15 @@ app.post(
       return;
     }
 
-    let session = null;
+    let session: Session | null = null;
 
     try {
-      //@ts-ignore
-      const [row]: Session[] | [] = await pool.execute<mysql.QueryResult>(
+      const [sessions] = await pool.execute<SessionRow[]>(
         "SELECT * FROM sessions WHERE token = ?",
         [token]
       );
 
-      session = row;
+      session = sessions[0];
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -205,15 +234,15 @@ app.post(
       return;
     }
 
-    let account = null;
+    let account: Account | null = null;
 
     try {
-      //@ts-ignore
-      const [row]: Account[] | [] = await pool.execute<mysql.QueryResult>(
+      const [accounts] = await pool.execute<AccountRow[]>(
         "SELECT * FROM accounts WHERE user_id = ?",
         [session.user_id]
       );
-      account = row;
+
+      account = accounts[0];
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -241,25 +270,25 @@ app.post(
     req: Request<
       {},
       {},
-      { amount: number },
+      { amount: number | undefined },
       {
         headers: {
-          Authorization: string;
+          authorization: string | undefined;
         };
       }
     >,
     res: Response<{ message: number } | { error: string }>
   ) => {
-    const bearer = req.headers.authorization;
+    const authHeader = req.headers.authorization;
 
-    if (!bearer) {
+    if (!authHeader) {
       res.status(401).json({
         error: "Du måste logga in för att sätta in pengar",
       });
       return;
     }
 
-    const token = bearer.split(" ")[1];
+    const token = authHeader.split(" ")[1];
 
     if (!token) {
       res.status(401).json({
@@ -268,15 +297,14 @@ app.post(
       return;
     }
 
-    let session = null;
+    let session: Session | null = null;
 
     try {
-      //@ts-ignore
-      const [row]: Session[] | [] = await pool.execute<mysql.QueryResult>(
+      const [sessions] = await pool.execute<SessionRow[]>(
         "SELECT * FROM sessions WHERE token = ?",
         [token]
       );
-      session = row;
+      session = sessions[0];
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -291,15 +319,15 @@ app.post(
       return;
     }
 
-    let account = null;
+    let account: Account | null = null;
 
     try {
-      //@ts-ignore
-      const [row]: Account[] | [] = await pool.execute<mysql.QueryResult>(
+      const [accounts] = await pool.execute<AccountRow[]>(
         "SELECT * FROM accounts WHERE user_id = ?",
         [session.user_id]
       );
-      account = row;
+
+      account = accounts[0];
     } catch (error) {
       res.status(500).json({
         error: "Något gick fel",
@@ -323,9 +351,11 @@ app.post(
       return;
     }
 
+    const absoluteAmount = Math.abs(amount);
+
     try {
       await pool.execute("UPDATE accounts SET balance = ? WHERE user_id = ?", [
-        account.balance + amount,
+        account.balance + absoluteAmount,
         session.user_id,
       ]);
     } catch (error) {
@@ -336,7 +366,7 @@ app.post(
     }
 
     res.status(200).json({
-      message: account.balance + amount,
+      message: account.balance + absoluteAmount,
     });
   }
 );

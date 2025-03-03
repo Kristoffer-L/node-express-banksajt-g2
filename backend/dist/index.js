@@ -22,13 +22,6 @@ const pool = promise_1.default.createPool({
     database: "banksajt",
     port: 3306,
 });
-function getUsers() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const [result] = yield pool.execute("SELECT * FROM users");
-        console.log(result);
-    });
-}
-//getUsers();
 const app = (0, express_1.default)();
 const port = 3000;
 // Middleware
@@ -37,8 +30,7 @@ app.use(express_1.default.json());
 // Generera engångslösenord
 function generateOTP() {
     // Generera en sexsiffrig numerisk OTP
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    return otp.toString();
+    return Math.floor(100000 + Math.random() * 900000).toString();
 }
 // Din kod här. Skriv dina arrayer
 /*
@@ -57,9 +49,10 @@ app.post("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         res.status(400).json({
             error: "Användarnamn och lösenord krävs",
         });
+        return;
     }
     try {
-        const [inserted] = yield pool.execute("INSERT INTO users (username, password) VALUES (?, ?)", [username, password]);
+        yield pool.execute("INSERT INTO users (username, password) VALUES (?, ?)", [username, password]);
     }
     catch (error) {
         res.status(500).json({
@@ -68,7 +61,7 @@ app.post("/users", (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         return;
     }
     try {
-        const [inserted] = yield pool.execute("INSERT INTO accounts(user_id) values ((SELECT id FROM users WHERE username = ?))", [username]);
+        yield pool.execute("INSERT INTO accounts(user_id) values ((SELECT id FROM users WHERE username = ?))", [username]);
     }
     catch (error) {
         res.status(500).json({
@@ -95,12 +88,12 @@ app.post("/sessions", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.status(400).json({
             error: "Användarnamn och lösenord krävs",
         });
+        return;
     }
     let user = null;
     try {
-        const [result] = yield pool.execute("SELECT * FROM users WHERE username = ? AND password = ?", [username, password]);
-        //@ts-ignore
-        user = result[0];
+        const [users] = yield pool.query("SELECT * FROM users WHERE username = ? AND password = ?", [username, password]);
+        user = users[0];
     }
     catch (error) {
         res.status(500).json({
@@ -116,9 +109,7 @@ app.post("/sessions", (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
     const token = generateOTP();
     try {
-        const [inserted] = yield pool.execute("INSERT INTO sessions (user_id, token) VALUES (?, ?)", 
-        //@ts-ignore
-        [user.id, token]);
+        yield pool.execute("INSERT INTO sessions (user_id, token) VALUES (?, ?)", [user.id, token]);
     }
     catch (error) {
         res.status(500).json({
@@ -148,9 +139,8 @@ app.post("/me/accounts", (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
     let session = null;
     try {
-        const [result] = yield pool.execute("SELECT * FROM sessions WHERE token = ?", [token]);
-        //@ts-ignore
-        session = result[0];
+        const [sessions] = yield pool.execute("SELECT * FROM sessions WHERE token = ?", [token]);
+        session = sessions[0];
     }
     catch (error) {
         res.status(500).json({
@@ -166,10 +156,8 @@ app.post("/me/accounts", (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
     let account = null;
     try {
-        const [result] = yield pool.execute("SELECT * FROM accounts WHERE user_id = ?", [session.user_id]);
-        console.log(result);
-        //@ts-ignore
-        account = result[0];
+        const [accounts] = yield pool.execute("SELECT * FROM accounts WHERE user_id = ?", [session.user_id]);
+        account = accounts[0];
     }
     catch (error) {
         res.status(500).json({
@@ -189,14 +177,14 @@ app.post("/me/accounts", (req, res) => __awaiter(void 0, void 0, void 0, functio
 }));
 //Sätt in pengar (POST): "/me/accounts/transactions"
 app.post("/me/accounts/transactions", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const bearer = req.headers.authorization;
-    if (!bearer) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
         res.status(401).json({
             error: "Du måste logga in för att sätta in pengar",
         });
         return;
     }
-    const token = bearer.split(" ")[1];
+    const token = authHeader.split(" ")[1];
     if (!token) {
         res.status(401).json({
             error: "Du måste logga in för att sätta in pengar",
@@ -205,9 +193,8 @@ app.post("/me/accounts/transactions", (req, res) => __awaiter(void 0, void 0, vo
     }
     let session = null;
     try {
-        const [result] = yield pool.execute("SELECT * FROM sessions WHERE token = ?", [token]);
-        //@ts-ignore
-        session = result[0];
+        const [sessions] = yield pool.execute("SELECT * FROM sessions WHERE token = ?", [token]);
+        session = sessions[0];
     }
     catch (error) {
         res.status(500).json({
@@ -223,9 +210,8 @@ app.post("/me/accounts/transactions", (req, res) => __awaiter(void 0, void 0, vo
     }
     let account = null;
     try {
-        const [result] = yield pool.execute("SELECT * FROM accounts WHERE user_id = ?", [session.user_id]);
-        //@ts-ignore
-        account = result[0];
+        const [accounts] = yield pool.execute("SELECT * FROM accounts WHERE user_id = ?", [session.user_id]);
+        account = accounts[0];
     }
     catch (error) {
         res.status(500).json({
@@ -246,9 +232,10 @@ app.post("/me/accounts/transactions", (req, res) => __awaiter(void 0, void 0, vo
         });
         return;
     }
+    const absoluteAmount = Math.abs(amount);
     try {
         yield pool.execute("UPDATE accounts SET balance = ? WHERE user_id = ?", [
-            account.balance + amount,
+            account.balance + absoluteAmount,
             session.user_id,
         ]);
     }
@@ -259,7 +246,7 @@ app.post("/me/accounts/transactions", (req, res) => __awaiter(void 0, void 0, vo
         return;
     }
     res.status(200).json({
-        message: account.balance + amount,
+        message: account.balance + absoluteAmount,
     });
 }));
 // Starta servern
