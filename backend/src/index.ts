@@ -102,7 +102,7 @@ app.post(
         };
       }
     >,
-    res: Response<{ account: Account } | { error: string }>
+    res: Response<{ balance: number } | { error: string }>
   ) => {
     const bearerAndToken = req.headers.authorization;
 
@@ -136,14 +136,65 @@ app.post(
     }
 
     res.status(200).json({
-      account,
+      balance: account.balance,
     });
   }
 );
 //Sätt in pengar (POST): "/me/accounts/transactions"
-app.post("/me/account/transaction", (req, res) => {
-  // res.json(usertoken);
-});
+app.post(
+  "/me/account/transaction",
+  (
+    req: Request<
+      {},
+      {},
+      {
+        amount: number;
+      },
+      {
+        headers: {
+          authorization: string | undefined;
+        };
+      }
+    >,
+    res: Response<{ message: number } | { error: string }>
+  ) => {
+    const bearerAndToken = req.headers.authorization;
+
+    const token = bearerAndToken?.split(" ")[1];
+
+    if (!token) {
+      res.status(401).json({
+        error: "Du är inte inloggad",
+      });
+      return;
+    }
+
+    const session = sessions.find((session) => session.token === token);
+
+    if (!session) {
+      res.status(401).json({
+        error: "Du är inte inloggad",
+      });
+      return;
+    }
+
+    const account = accounts.find(
+      (account) => account.user_id === session.user_id
+    );
+
+    if (!account) {
+      res.status(404).json({
+        error: "Kontot hittades inte",
+      });
+      return;
+    }
+    account.balance += req.body.amount;
+
+    res.status(200).json({
+      message: account.balance,
+    });
+  }
+);
 
 // Starta servern
 app.listen(port, () => {
