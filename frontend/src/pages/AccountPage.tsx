@@ -58,7 +58,8 @@ function AccountPage() {
             });
             if(response.ok) {
                 const data = await response.json();
-                alert(`Du har nu ${data.message} kronor på ditt konto`);
+                alert(`Du har nu ${data.amount} kronor på ditt konto`);
+                console.log('data', data);
                 fetchAccountBalance();
             } else {
                 console.error('Error:', response);

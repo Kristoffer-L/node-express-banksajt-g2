@@ -38,13 +38,32 @@ const users: User[] = [
   { id: 101, username: "kristoffer", password: "password" },
 ];
 const accounts: Account[] = [{ id: 1, user_id: 101, balance: 100 }];
-const sessions: Session[] = [{ id: 1, user_id: 101, token: "" }];
+const sessions: Session[] = [{ id: 1, user_id: 101, token: "10" }];
 
 // Din kod här. Skriv dina routes:
 
 //Skapa användare (POST): "/users"
 app.post("/users", (req, res) => {
-  res.json(req.body.username);
+
+  const username = req.body.username;
+  const password = req.body.password;
+  const newUser: User = {
+    id: users.length + 1,
+    username: username,
+    password: password
+  }
+
+  users.push(newUser);
+
+  const newAccount: Account = {
+    id: accounts.length + 1,
+    user_id: newUser.id,
+    balance: 0
+  }
+  
+  accounts.push(newAccount);
+  res.json({newAccount, newUser});
+
 });
 //Logga in (POST): "/sessions"
 app.post("/sessions", (req, res) => {
@@ -76,8 +95,9 @@ app.post("/me/accounts", (req, res) => {
   // res.json({ balance });
 });
 //Sätt in pengar (POST): "/me/accounts/transactions"
-app.post("/me/accounts/transactions", (req, res) => {
-  res.send("users here");
+app.post("/me/account/transaction", (req, res) => {
+  
+  res.json(req.body);
 });
 
 // Starta servern
