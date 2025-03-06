@@ -73,24 +73,24 @@ app.post("/users", async (req, res) => {
       password: password,
     };
 
-    const [accountResult] = await pool.query(
-      "INSERT INTO accounts (user_id, balance) VALUES (?, ?)",
-      [newUser.id, 0]
-    );
+    // const [accountResult] = await pool.query(
+    //   "INSERT INTO accounts (user_id, balance) VALUES (?, ?)",
+    //   [newUser.id, 0]
+    // );
 
-    const newAccount: Account = {
-      id: accounts.length + 1,
-      user_id: newUser.id,
-      balance: 0,
-    };
+    // const newAccount: Account = {
+    //   id: accounts.length + 1,
+    //   user_id: newUser.id,
+    //   balance: 0,
+    // };
 
     users.push(newUser);
-    accounts.push(newAccount);
+    // accounts.push(newAccount);
 
-    res.json({ newAccount, newUser });
+    res.json({ newUser });
   } catch (error) {
     console.error("Error creating user:", error);
-    res.status(500).json({ error: "Error creating user" });
+    // res.status(500).json({ error: "Error creating user" });
   }
 
   // users.push(newUser);
