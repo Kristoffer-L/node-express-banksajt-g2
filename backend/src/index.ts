@@ -1,5 +1,16 @@
 import express, { Response, Request } from "express";
 import cors from "cors";
+import mysql from "mysql2/promise";
+import bodyParser from "body-parser";
+
+//Uppkoppling mot databasen
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: parseInt(process.env.DB_PORT || "3306"),
+});
 
 const app = express();
 const port = 3000;
