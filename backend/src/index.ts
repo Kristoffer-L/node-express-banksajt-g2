@@ -2,6 +2,9 @@ import express, { Response, Request } from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
 import bodyParser from "body-parser";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 //Uppkoppling mot databasen
 const pool = mysql.createPool({
@@ -54,26 +57,52 @@ const sessions: Session[] = [];
 // Din kod här. Skriv dina routes:
 
 //Skapa användare (POST): "/users"
-app.post("/users", (req, res) => {
+app.post("/users", async (req, res) => {
   const username = req.body.username;
   const password = req.body.password;
-  const newUser: User = {
-    id: users.length + 1,
-    username: username,
-    password: password,
-  };
 
-  users.push(newUser);
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO users (username, password) VALUES (?, ?)`,
+      [username, password]
+    );
 
-  const newAccount: Account = {
-    id: accounts.length + 1,
-    user_id: newUser.id,
-    balance: 0,
-  };
+    const newUser: User = {
+      id: users.length + 1,
+      username: username,
+      password: password,
+    };
 
-  accounts.push(newAccount);
-  res.json({ newAccount, newUser });
+    const [accountResult] = await pool.query(
+      "INSERT INTO accounts (user_id, balance) VALUES (?, ?)",
+      [newUser.id, 0]
+    );
+
+    const newAccount: Account = {
+      id: accounts.length + 1,
+      user_id: newUser.id,
+      balance: 0,
+    };
+
+    users.push(newUser);
+    accounts.push(newAccount);
+
+    res.json({ newAccount, newUser });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    res.status(500).json({ error: "Error creating user" });
+  }
+
+  // users.push(newUser);
+
+  // const newAccount: Account = {
+  //   id: accounts.length + 1,
+  //   user_id: newUser.id,
+  //   balance: 0,
+  // };
+  // accounts.push(newAccount);
 });
+
 //Logga in (POST): "/sessions"
 app.post("/sessions", (req, res) => {
   users.forEach((user) => {
